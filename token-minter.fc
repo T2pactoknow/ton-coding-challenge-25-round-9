@@ -1,0 +1,41 @@
+#include "imports/stdlib.fc";
+
+const MY_WORKCHAIN = BASECHAIN;
+const op::mint = "mint"c; ;; 1c28e4aa
+const op::burn = "burn"c; ;; b4aa8123
+
+int supply;
+
+() mint_tokens(int amount) impure inline {
+    supply += amount;
+}
+
+() burn_tokens(int amount) impure inline {
+    throw_unless(1004, supply >= amount);
+    supply -= amount;
+}
+
+() route_internal(slice ctx::sender, int ctx::value, int ctx::fwd_fee, slice ctx::body) impure inline {
+    (int op, int query_id) = ctx::body~load_op_and_query_id();
+
+    if op == op::mint {
+        mint_tokens(100);
+        return ();
+    }
+
+    if op == op::burn {
+        burn_tokens(50);
+        return ();
+    }
+
+    throw(0xffff);
+}
+
+() main(int ctx::value, cell in_msg_full, slice ctx::body) impure {
+    slice s = in_msg_full.begin_parse();
+    int flags = s~load_msg_flags();
+    if (is_bounced(flags)) { return (); }
+
+    (slice ctx::sender, int ctx::fwd_fee) = s~retrieve_ctx(MY_WORKCHAIN);
+    route_internal(ctx::sender, ctx::value, ctx::fwd_fee, ctx::body);
+}
